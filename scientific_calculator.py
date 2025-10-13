@@ -550,11 +550,11 @@ if __name__ == "__main__":
     
     # PARAMETRELER - Tümünü buradan kontrol edebilirsin
     params = {
-        'age_range': (60, 69),
-        'bmi_range': (27, 34),
-        'weight_loss_percent': -15,  # Negatif = kilo kaybı, Pozitif = kilo artışı
+        'age_range': (30, 69),
+        'bmi_range': (37, 44),
+        'weight_loss_percent': -20,  # Negatif = kilo kaybı, Pozitif = kilo artışı
         'gender': 'male',
-        'time_horizon':10,  # 1-10 arası (yıl)
+        'time_horizon':4,  # 1-10 arası (yıl)
         'cost_per_case': 1000
     }
     
@@ -563,68 +563,26 @@ if __name__ == "__main__":
     results_t2d = calculator.calculate_t2d(**params)
     results_dyslip = calculator.calculate_dyslipidaemia(**params)
     
-    # JSON çıktısı - GERÇEK CPRD YEAR-ON-YEAR METODOLOJİSİ
+    # Basit JSON çıktısı
     output = {
-        "methodology": {
-            "model_type": "CPRD Year-on-Year (gerçek veri bazlı)",
-            "data_source": "Clinical Practice Research Datalink - 67,200 kayıt",
-            "approach": "Her yıl baseline vs intervention incidence farkı",
-            "waning_weight_regain": "CPRD datasında zaten var (ayrıca uygulanmaz)",
-            "discount": "Minimal/yok (gerçek yazılımla uyumlu)"
+        "hypertension": {
+            "risk_reduction_percent": round(results_ht['rrr'], 1),
+            "cases_prevented": int(round(results_ht['cases'])),
+            "cost_saving": int(round(results_ht['cost_saving']))
         },
-        "analysis_parameters": {
-            "age_range": params['age_range'],
-            "bmi_range": params['bmi_range'],
-            "weight_loss_percent": params['weight_loss_percent'],
-            "gender": params['gender'],
-            "time_horizon_years": params['time_horizon'],
-            "population_size": calculator.population_size,
-            "discount_rate": f"{calculator.discount_rate*100}%",
-            "cost_type": "Real (Reel)" if calculator.cost_growth_rate == 0 else "Nominal"
+        "t2d": {
+            "risk_reduction_percent": round(results_t2d['rrr'], 1),
+            "cases_prevented": int(round(results_t2d['cases'])),
+            "cost_saving": int(round(results_t2d['cost_saving']))
         },
-        "results": {
-            "hypertension": {
-                "rrr_year1_percent": round(results_ht['rrr'], 1),
-                "cases_prevented_total": round(results_ht['cases'], 1),
-                "cost_saving_npv": int(round(results_ht['cost_saving'])),
-                "yearly_breakdown": results_ht.get('yearly_breakdown', [])
-            },
-            "t2d": {
-                "rrr_year1_percent": round(results_t2d['rrr'], 1),
-                "cases_prevented_total": round(results_t2d['cases'], 1),
-                "cost_saving_npv": int(round(results_t2d['cost_saving'])),
-                "yearly_breakdown": results_t2d.get('yearly_breakdown', [])
-            },
-            "dyslipidaemia": {
-                "rrr_year1_percent": round(results_dyslip['rrr'], 1),
-                "cases_prevented_total": round(results_dyslip['cases'], 1),
-                "cost_saving_npv": int(round(results_dyslip['cost_saving'])),
-                "yearly_breakdown": results_dyslip.get('yearly_breakdown', [])
-            }
-        },
-        "summary": {
-            "total_cases_prevented": round(results_ht['cases'] + results_t2d['cases'] + results_dyslip['cases'], 1),
-            "total_cost_saving_npv": int(round(results_ht['cost_saving'] + results_t2d['cost_saving'] + results_dyslip['cost_saving'])),
-            "interpretation": "NPV = Net Present Value (bugünkü değer, reel)"
-        },
-        "validation": {
-            "cprd_year_on_year_data": "67,200 gerçek kayıt - Year 1-10 incidence",
-            "real_software_match": "T2D 6yr: 110,905 TL (gerçek: 108,518 TL, %2.2 fark)",
-            "methodology": "Baseline vs Intervention incidence farkı (yıllık)"
+        "dyslipidaemia": {
+            "risk_reduction_percent": round(results_dyslip['rrr'], 1),
+            "cases_prevented": int(round(results_dyslip['cases'])),
+            "cost_saving": int(round(results_dyslip['cost_saving']))
         }
     }
     
-    print("="*100)
-    print(" GERCEK CPRD YEAR-ON-YEAR METODOLOJISI - VALIDATION: %2.2 FARK")
-    print("="*100)
     print(json.dumps(output, indent=2, ensure_ascii=False))
-    
-    print("\n" + "="*100)
-    print(f" T2D GERCEK YAZILIM KARSILASTIRMASI:")
-    print(f"   Hesaplanan: {int(round(results_t2d['cost_saving'])):,} TL")
-    print(f"   Gercek:     108,518 TL")
-    print(f"   Fark:       {abs(108518 - int(round(results_t2d['cost_saving']))):,} TL")
-    print("="*100)
    
    
 
