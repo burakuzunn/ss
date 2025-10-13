@@ -366,8 +366,8 @@ if __name__ == "__main__":
         age_range=(40, 49),
         bmi_range=(32, 35),
         weight_loss_percent=-16,
-        gender='male',
-        time_horizon=1,
+        gender='female',
+        time_horizon=4,
         cost_per_case=1000
     )
     
@@ -376,8 +376,8 @@ if __name__ == "__main__":
         age_range=(40, 49),
         bmi_range=(32, 35),
         weight_loss_percent=-16,
-        gender='male',
-        time_horizon=1,
+        gender='female',
+        time_horizon=4,
         cost_per_case=1000
     )
     
@@ -386,8 +386,8 @@ if __name__ == "__main__":
         age_range=(40, 49),
         bmi_range=(32, 35),
         weight_loss_percent=-16,
-        gender='male',
-        time_horizon=1,
+         gender='female',
+        time_horizon=4,
         cost_per_case=1000
     )
     
