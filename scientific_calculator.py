@@ -10,6 +10,8 @@ Kaynak: PMC10399528 - Weight loss and modeled cost savings in DPP
 
 import json
 import math
+import argparse
+import sys
 
 class ScientificCalculator:
     def __init__(self, population_size=1000, hypertension_cost=1000, 
@@ -539,23 +541,51 @@ class ScientificCalculator:
         
         return results
 
-if __name__ == "__main__":
-    # Profesyonel konfigürasyon - Kanıt-bazlı parametreler
-    calculator = ScientificCalculator(
-        population_size=1000,
-        hypertension_cost=1000,
-        discount_rate=0.035,     # %3.5 (NICE health technology evaluations standardı)
-        cost_growth_rate=0.0     # Reel maliyet (nominal istersen 0.05 yap)
+def main():
+    """CLI için ana fonksiyon"""
+    parser = argparse.ArgumentParser(
+        description='CPRD-bazlı Sağlık Ekonomisi Hesaplayıcı (Time Horizon: 1-10 yıl)',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Örnekler:
+  python scientific_calculator.py --age-min 30 --age-max 69 --bmi-min 37 --bmi-max 44 --weight-loss -20 --gender male --time-horizon 4
+  python scientific_calculator.py --age-min 60 --age-max 69 --bmi-min 27 --bmi-max 34 --weight-loss -15 --time-horizon 6 --population 1000
+        """
     )
     
-    # PARAMETRELER - Tümünü buradan kontrol edebilirsin
+    parser.add_argument('--age-min', type=int, required=True, help='Minimum yaş')
+    parser.add_argument('--age-max', type=int, required=True, help='Maximum yaş')
+    parser.add_argument('--bmi-min', type=float, required=True, help='Minimum BMI')
+    parser.add_argument('--bmi-max', type=float, required=True, help='Maximum BMI')
+    parser.add_argument('--weight-loss', type=float, required=True, help='Kilo değişimi yüzdesi (negatif = kayıp)')
+    parser.add_argument('--gender', type=str, required=True, choices=['male', 'female', 'both'], help='Cinsiyet')
+    parser.add_argument('--time-horizon', type=int, required=True, help='Time horizon (1-10 yıl)')
+    parser.add_argument('--population', type=int, default=1000, help='Popülasyon sayısı (varsayılan: 1000)')
+    parser.add_argument('--cost-per-case', type=int, default=1000, help='Vaka başı maliyet (varsayılan: 1000)')
+    
+    args = parser.parse_args()
+    
+    # Validasyon
+    if not (1 <= args.time_horizon <= 10):
+        print("HATA: Time horizon 1-10 arasında olmalı!")
+        sys.exit(1)
+    
+    # Calculator oluştur
+    calculator = ScientificCalculator(
+        population_size=args.population,
+        hypertension_cost=args.cost_per_case,
+        discount_rate=0.035,
+        cost_growth_rate=0.0
+    )
+    
+    # Parametreler
     params = {
-        'age_range': (30, 69),
-        'bmi_range': (37, 44),
-        'weight_loss_percent': -20,  # Negatif = kilo kaybı, Pozitif = kilo artışı
-        'gender': 'male',
-        'time_horizon':4,  # 1-10 arası (yıl)
-        'cost_per_case': 1000
+        'age_range': (args.age_min, args.age_max),
+        'bmi_range': (args.bmi_min, args.bmi_max),
+        'weight_loss_percent': args.weight_loss,
+        'gender': args.gender,
+        'time_horizon': args.time_horizon,
+        'cost_per_case': args.cost_per_case
     }
     
     # Hesaplamalar
@@ -563,7 +593,7 @@ if __name__ == "__main__":
     results_t2d = calculator.calculate_t2d(**params)
     results_dyslip = calculator.calculate_dyslipidaemia(**params)
     
-    # Basit JSON çıktısı
+    # JSON çıktısı
     output = {
         "hypertension": {
             "risk_reduction_percent": round(results_ht['rrr'], 1),
@@ -583,6 +613,9 @@ if __name__ == "__main__":
     }
     
     print(json.dumps(output, indent=2, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
    
    
 
