@@ -12,12 +12,9 @@ import json
 import math
 
 class ScientificCalculator:
-    def __init__(self, population_size=1000, hypertension_cost=1000, 
-                 weight_maintenance_rate=0.8, discount_rate=0.03):
+    def __init__(self, population_size=1000, hypertension_cost=1000):
         self.population_size = population_size
         self.hypertension_cost = hypertension_cost
-        self.weight_maintenance_rate = weight_maintenance_rate  # Her yıl kilo kaybı sürdürme oranı (0.8 = %20 azalma)
-        self.discount_rate = discount_rate  # Yıllık ekonomik iskonto oranı
         
         # CPRD verilerini yukle
         self.cprd = self._load_cprd()
@@ -143,7 +140,7 @@ class ScientificCalculator:
         }
     
     def calculate_hypertension(self, age_range, bmi_range, weight_loss_percent, gender=1, 
-                              time_horizon=3, cost_per_case=1000, discount_rate=0.03):
+                              time_horizon=1, cost_per_case=1000):
         """
         Hipertansiyon hesaplama
         
@@ -154,7 +151,6 @@ class ScientificCalculator:
             gender: 'male', 'female', 'both', 0, 1
             time_horizon: Yil sayisi
             cost_per_case: Maliyet (TL)
-            discount_rate: Yillik iskonto orani (varsayilan %3)
         """
         age = sum(age_range) / 2
         bmi = sum(bmi_range) / 2
@@ -171,40 +167,14 @@ class ScientificCalculator:
             g = 1 if gender == 'male' else (0 if gender == 'female' else gender)
             results = self.calculate_disease_generic(age, bmi, weight_loss_percent, g, 'hypertension', 1.54, cost_per_case)
         
-        # Time horizon hesaplaması - Discount rate ve weight maintenance ile
         if time_horizon > 1:
-            base_cases = results['cases']
-            base_cost = results['cost_saving']
-            
-            total_cases = 0
-            total_cost_npv = 0
-            
-            for year in range(1, time_horizon + 1):
-                # Kilo kaybi surdurme faktoru
-                # weight_maintenance_rate=0.8: Her yıl %20 azalma (Year 1: 100%, Year 2: 80%, Year 3: 64%)
-                # weight_maintenance_rate=1.0: Azalma yok (Year 1: 100%, Year 2: 100%, Year 3: 100%)
-                weight_maintenance = self.weight_maintenance_rate ** (year - 1)
-                
-                year_cases = base_cases * weight_maintenance
-                year_cost = base_cost * weight_maintenance
-                
-                # Net Present Value (NPV) - gelecekteki tasarruflari bugune indirge
-                # Year 1 = bugün (discount yok), Year 2+ için discount uygula
-                if year == 1:
-                    discounted_cost = year_cost
-                else:
-                    discounted_cost = year_cost / ((1 + self.discount_rate) ** (year - 1))
-                
-                total_cases += year_cases
-                total_cost_npv += discounted_cost
-            
-            results['cases'] = total_cases
-            results['cost_saving'] = total_cost_npv
+            results['cases'] *= time_horizon
+            results['cost_saving'] *= time_horizon
         
         return results
     
     def calculate_t2d(self, age_range, bmi_range, weight_loss_percent, gender=1,
-                     time_horizon=3, cost_per_case=1500, discount_rate=0.03):
+                     time_horizon=1, cost_per_case=1500):
         """
         T2D (Tip 2 Diyabet) hesaplama
         
@@ -217,7 +187,6 @@ class ScientificCalculator:
             gender: 'male', 'female', 'both', 0, 1
             time_horizon: Yil sayisi
             cost_per_case: Maliyet (TL)
-            discount_rate: Yillik iskonto orani (varsayilan %3)
         """
         age = sum(age_range) / 2
         bmi = sum(bmi_range) / 2
@@ -234,38 +203,14 @@ class ScientificCalculator:
             g = 1 if gender == 'male' else (0 if gender == 'female' else gender)
             results = self.calculate_disease_generic(age, bmi, weight_loss_percent, g, 't2d', 2.9, cost_per_case)
         
-        # Time horizon hesaplaması - Discount rate ve weight maintenance ile
         if time_horizon > 1:
-            base_cases = results['cases']
-            base_cost = results['cost_saving']
-            
-            total_cases = 0
-            total_cost_npv = 0
-            
-            for year in range(1, time_horizon + 1):
-                # Kilo kaybi surdurme faktoru
-                weight_maintenance = self.weight_maintenance_rate ** (year - 1)
-                
-                year_cases = base_cases * weight_maintenance
-                year_cost = base_cost * weight_maintenance
-                
-                # Net Present Value (NPV)
-                # Year 1 = bugün (discount yok), Year 2+ için discount uygula
-                if year == 1:
-                    discounted_cost = year_cost
-                else:
-                    discounted_cost = year_cost / ((1 + self.discount_rate) ** (year - 1))
-                
-                total_cases += year_cases
-                total_cost_npv += discounted_cost
-            
-            results['cases'] = total_cases
-            results['cost_saving'] = total_cost_npv
+            results['cases'] *= time_horizon
+            results['cost_saving'] *= time_horizon
         
         return results
     
     def calculate_dyslipidaemia(self, age_range, bmi_range, weight_loss_percent, gender=1,
-                                time_horizon=3, cost_per_case=1200, discount_rate=0.03):
+                                time_horizon=1, cost_per_case=1200):
         """
         Dislipidemi hesaplama
         
@@ -276,7 +221,6 @@ class ScientificCalculator:
             gender: 'male', 'female', 'both', 0, 1
             time_horizon: Yil sayisi
             cost_per_case: Maliyet (TL)
-            discount_rate: Yillik iskonto orani (varsayilan %3)
         """
         age = sum(age_range) / 2
         bmi = sum(bmi_range) / 2
@@ -293,33 +237,9 @@ class ScientificCalculator:
             g = 1 if gender == 'male' else (0 if gender == 'female' else gender)
             results = self.calculate_disease_generic(age, bmi, weight_loss_percent, g, 'dyslipidaemia', 1.3, cost_per_case)
         
-        # Time horizon hesaplaması - Discount rate ve weight maintenance ile
         if time_horizon > 1:
-            base_cases = results['cases']
-            base_cost = results['cost_saving']
-            
-            total_cases = 0
-            total_cost_npv = 0
-            
-            for year in range(1, time_horizon + 1):
-                # Kilo kaybi surdurme faktoru (her yil %20 azalma)
-                weight_maintenance = 0.8 ** (year - 1)
-                
-                year_cases = base_cases * weight_maintenance
-                year_cost = base_cost * weight_maintenance
-                
-                # Net Present Value (NPV)
-                # Year 1 = bugün (discount yok), Year 2+ için discount uygula
-                if year == 1:
-                    discounted_cost = year_cost
-                else:
-                    discounted_cost = year_cost / ((1 + discount_rate) ** (year - 1))
-                
-                total_cases += year_cases
-                total_cost_npv += discounted_cost
-            
-            results['cases'] = total_cases
-            results['cost_saving'] = total_cost_npv
+            results['cases'] *= time_horizon
+            results['cost_saving'] *= time_horizon
         
         return results
     
@@ -361,57 +281,68 @@ class ScientificCalculator:
 if __name__ == "__main__":
     calculator = ScientificCalculator(population_size=1000, hypertension_cost=1000)
     
-    # Hipertansiyon hesaplama
+    print("\n" + "="*60)
+    print("ORNEK 1: HIPERTANSIYON")
+    print("="*60)
+    
     results_ht = calculator.calculate_hypertension(
-        age_range=(40, 49),
-        bmi_range=(32, 35),
-        weight_loss_percent=-16,
-        gender='female',
-        time_horizon=4,
+       age_range=(60, 69),
+        bmi_range=(46, 50),
+        weight_loss_percent=-20,
+        gender='male',
+        time_horizon=1,
         cost_per_case=1000
     )
+    print(f"Relative Risk Reduction: %{results_ht['rrr']:.1f}")
+    print(f"Reduction in Cases: {results_ht['cases']:.1f}")
+    print(f"Cost Saving: {results_ht['cost_saving']:,.0f} TL")
     
-    # T2D hesaplama
+    print("\n" + "="*60)
+    print("ORNEK 2: TIP 2 DIYABET (T2D)")
+    print("="*60)
+    
     results_t2d = calculator.calculate_t2d(
-        age_range=(40, 49),
-        bmi_range=(32, 35),
-        weight_loss_percent=-16,
-        gender='female',
-        time_horizon=4,
+      age_range=(60, 69),
+        bmi_range=(46, 50),
+        weight_loss_percent=-20,
+        gender='male',
+        time_horizon=1,
         cost_per_case=1000
     )
+    print(f"Relative Risk Reduction: %{results_t2d['rrr']:.1f}")
+    print(f"Reduction in Cases: {results_t2d['cases']:.1f}")
+    print(f"Cost Saving: {results_t2d['cost_saving']:,.0f} TL")
     
-    # Dislipidemi hesaplama
+    print("\n" + "="*60)
+    print("ORNEK 3: DISLIPIDEMI")
+    print("="*60)
+    
     results_dyslip = calculator.calculate_dyslipidaemia(
-        age_range=(40, 49),
-        bmi_range=(32, 35),
-        weight_loss_percent=-16,
-         gender='female',
-        time_horizon=4,
+     age_range=(60, 69),
+        bmi_range=(46, 50),
+        weight_loss_percent=-20,
+        gender='male',
+        time_horizon=1,
         cost_per_case=1000
     )
+    print(f"Relative Risk Reduction: %{results_dyslip['rrr']:.1f}")
+    print(f"Reduction in Cases: {results_dyslip['cases']:.1f}")
+    print(f"Cost Saving: {results_dyslip['cost_saving']:,.0f} TL")
     
-    # JSON çıktısı
-    output = {
-        "hypertension": {
-            "risk_reduction_percent": round(results_ht['rrr'], 1),
-            "cases_prevented": round(results_ht['cases'], 1),
-            "cost_saving": round(results_ht['cost_saving'], 0)
-        },
-        "t2d": {
-            "risk_reduction_percent": round(results_t2d['rrr'], 1),
-            "cases_prevented": round(results_t2d['cases'], 1),
-            "cost_saving": round(results_t2d['cost_saving'], 0)
-        },
-        "dyslipidaemia": {
-            "risk_reduction_percent": round(results_dyslip['rrr'], 1),
-            "cases_prevented": round(results_dyslip['cases'], 1),
-            "cost_saving": round(results_dyslip['cost_saving'], 0)
-        }
-    }
+    print("\n" + "="*60)
+    print("KAYNAK:")
+    print("  PMC10399528: Kilo kaybi ve hastalik riski azalmasi")
+    print("  CPRD Data: 67,440 gercek hasta kaydi")
+    print("  Formul: RRR × Baseline_Prevalence × Population × Age_Scale")
+    print("="*60)
     
-    print(json.dumps(output, indent=2, ensure_ascii=False))
+    print("\n" + "="*60)
+    print("TOPLAM 3 HASTALIK TASARRUFU:")
+    total_cost = results_ht['cost_saving'] + results_t2d['cost_saving'] + results_dyslip['cost_saving']
+    total_cases = results_ht['cases'] + results_t2d['cases'] + results_dyslip['cases']
+    print(f"  Toplam Cases: {total_cases:.1f}")
+    print(f"  Toplam Cost: {total_cost:,.0f} TL")
+    print("="*60)
    
    
-
 
