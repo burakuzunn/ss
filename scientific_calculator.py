@@ -120,9 +120,13 @@ class ScientificCalculator:
         baseline_prevalence = self.get_baseline_prevalence(age, bmi, gender, disease=disease)
         baseline_patients = self.population_size * baseline_prevalence
         
-        # 2. RRR (hastaliğa ozgu)
-        rrr = abs(weight_loss_percent) * rrr_coefficient
-        rrr = min(rrr, 90)  # Maksimum %90
+        # 2. RRR (hastaliğa ozgu) - Kilo artışı kontrolü
+        if weight_loss_percent >= 0:
+            # Kilo artışı -> risk azalması yok
+            rrr = 0
+        else:
+            rrr = abs(weight_loss_percent) * rrr_coefficient
+            rrr = min(rrr, 90)  # Maksimum %90
         
         # 3. Cases (RRR'den turetilmis + yas faktoru)
         cases_prevented = self.calculate_cases_from_prevalence(baseline_prevalence, rrr, age)
@@ -174,7 +178,7 @@ class ScientificCalculator:
         return results
     
     def calculate_t2d(self, age_range, bmi_range, weight_loss_percent, gender=1,
-                     time_horizon=1, cost_per_case=1500):
+                     time_horizon=1, cost_per_case=1000):
         """
         T2D (Tip 2 Diyabet) hesaplama
         
@@ -210,7 +214,7 @@ class ScientificCalculator:
         return results
     
     def calculate_dyslipidaemia(self, age_range, bmi_range, weight_loss_percent, gender=1,
-                                time_horizon=1, cost_per_case=1200):
+                                time_horizon=1, cost_per_case=1000):
         """
         Dislipidemi hesaplama
         
@@ -244,13 +248,11 @@ class ScientificCalculator:
         return results
     
     def analyze(self, age_range, bmi_range, weight_change_percent, gender, time_horizon=1):
-        """Analiz yap"""
-        age_avg = sum(age_range) / 2
-        bmi_avg = sum(bmi_range) / 2
+        """Analiz yap - Doğrudan range'leri geçir"""
         
         if gender == 'both':
-            results_male = self.calculate_hypertension(age_avg, bmi_avg, weight_change_percent, gender=1)
-            results_female = self.calculate_hypertension(age_avg, bmi_avg, weight_change_percent, gender=0)
+            results_male = self.calculate_hypertension(age_range, bmi_range, weight_change_percent, gender=1, time_horizon=time_horizon)
+            results_female = self.calculate_hypertension(age_range, bmi_range, weight_change_percent, gender=0, time_horizon=time_horizon)
             
             results = {
                 'rrr': (results_male['rrr'] + results_female['rrr']) / 2,
@@ -258,15 +260,11 @@ class ScientificCalculator:
                 'cost_saving': (results_male['cost_saving'] + results_female['cost_saving']) / 2
             }
         elif gender == 'male' or gender == 1:
-            results = self.calculate_hypertension(age_avg, bmi_avg, weight_change_percent, gender=1)
+            results = self.calculate_hypertension(age_range, bmi_range, weight_change_percent, gender=1, time_horizon=time_horizon)
         elif gender == 'female' or gender == 0:
-            results = self.calculate_hypertension(age_avg, bmi_avg, weight_change_percent, gender=0)
+            results = self.calculate_hypertension(age_range, bmi_range, weight_change_percent, gender=0, time_horizon=time_horizon)
         else:
-            results = self.calculate_hypertension(age_avg, bmi_avg, weight_change_percent, gender=gender)
-        
-        if time_horizon > 1:
-            results['cases'] = results['cases'] * time_horizon
-            results['cost_saving'] = results['cost_saving'] * time_horizon
+            results = self.calculate_hypertension(age_range, bmi_range, weight_change_percent, gender=gender, time_horizon=time_horizon)
         
         print("="*50)
         print("HIPERTANSIYON ANALIZ SONUCLARI")
@@ -281,68 +279,41 @@ class ScientificCalculator:
 if __name__ == "__main__":
     calculator = ScientificCalculator(population_size=1000, hypertension_cost=1000)
     
-    print("\n" + "="*60)
-    print("ORNEK 1: HIPERTANSIYON")
-    print("="*60)
+    # PARAMETRELER - Tümünü buradan kontrol edebilirsin
+    params = {
+        'age_range': (60, 69),
+        'bmi_range': (27, 34),
+        'weight_loss_percent': -15,  # Negatif = kilo kaybı, Pozitif = kilo artışı
+        'gender': 'female',
+        'time_horizon': 1,  # 1-10 arası
+        'cost_per_case': 1000
+    }
     
-    results_ht = calculator.calculate_hypertension(
-       age_range=(60, 69),
-        bmi_range=(46, 50),
-        weight_loss_percent=-20,
-        gender='male',
-        time_horizon=1,
-        cost_per_case=1000
-    )
-    print(f"Relative Risk Reduction: %{results_ht['rrr']:.1f}")
-    print(f"Reduction in Cases: {results_ht['cases']:.1f}")
-    print(f"Cost Saving: {results_ht['cost_saving']:,.0f} TL")
+    # Hesaplamalar
+    results_ht = calculator.calculate_hypertension(**params)
+    results_t2d = calculator.calculate_t2d(**params)
+    results_dyslip = calculator.calculate_dyslipidaemia(**params)
     
-    print("\n" + "="*60)
-    print("ORNEK 2: TIP 2 DIYABET (T2D)")
-    print("="*60)
+    # JSON çıktısı
+    output = {
+        "hypertension": {
+            "risk_reduction_percent": round(results_ht['rrr'], 1),
+            "cases_prevented": int(round(results_ht['cases'])),
+            "cost_saving": int(round(results_ht['cost_saving']))
+        },
+        "t2d": {
+            "risk_reduction_percent": round(results_t2d['rrr'], 1),
+            "cases_prevented": int(round(results_t2d['cases'])),
+            "cost_saving": int(round(results_t2d['cost_saving']))
+        },
+        "dyslipidaemia": {
+            "risk_reduction_percent": round(results_dyslip['rrr'], 1),
+            "cases_prevented": int(round(results_dyslip['cases'])),
+            "cost_saving": int(round(results_dyslip['cost_saving']))
+        }
+    }
     
-    results_t2d = calculator.calculate_t2d(
-      age_range=(60, 69),
-        bmi_range=(46, 50),
-        weight_loss_percent=-20,
-        gender='male',
-        time_horizon=1,
-        cost_per_case=1000
-    )
-    print(f"Relative Risk Reduction: %{results_t2d['rrr']:.1f}")
-    print(f"Reduction in Cases: {results_t2d['cases']:.1f}")
-    print(f"Cost Saving: {results_t2d['cost_saving']:,.0f} TL")
-    
-    print("\n" + "="*60)
-    print("ORNEK 3: DISLIPIDEMI")
-    print("="*60)
-    
-    results_dyslip = calculator.calculate_dyslipidaemia(
-     age_range=(60, 69),
-        bmi_range=(46, 50),
-        weight_loss_percent=-20,
-        gender='male',
-        time_horizon=1,
-        cost_per_case=1000
-    )
-    print(f"Relative Risk Reduction: %{results_dyslip['rrr']:.1f}")
-    print(f"Reduction in Cases: {results_dyslip['cases']:.1f}")
-    print(f"Cost Saving: {results_dyslip['cost_saving']:,.0f} TL")
-    
-    print("\n" + "="*60)
-    print("KAYNAK:")
-    print("  PMC10399528: Kilo kaybi ve hastalik riski azalmasi")
-    print("  CPRD Data: 67,440 gercek hasta kaydi")
-    print("  Formul: RRR × Baseline_Prevalence × Population × Age_Scale")
-    print("="*60)
-    
-    print("\n" + "="*60)
-    print("TOPLAM 3 HASTALIK TASARRUFU:")
-    total_cost = results_ht['cost_saving'] + results_t2d['cost_saving'] + results_dyslip['cost_saving']
-    total_cases = results_ht['cases'] + results_t2d['cases'] + results_dyslip['cases']
-    print(f"  Toplam Cases: {total_cases:.1f}")
-    print(f"  Toplam Cost: {total_cost:,.0f} TL")
-    print("="*60)
+    print(json.dumps(output, indent=2, ensure_ascii=False))
    
    
 
