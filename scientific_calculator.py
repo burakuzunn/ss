@@ -30,7 +30,7 @@ class ScientificCalculator:
         try:
             # Script'in bulunduğu dizini bul
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            cprd_file = os.path.join(script_dir, 'cprd-data.prettier_complete.json')
+            cprd_file = os.path.join("./", 'cprd-data.prettier_complete.json')
             
             with open(cprd_file, 'r', encoding='utf-8') as f:
                 return json.load(f)
