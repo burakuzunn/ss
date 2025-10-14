@@ -12,6 +12,7 @@ import json
 import math
 import argparse
 import sys
+import os
 
 class ScientificCalculator:
     def __init__(self, population_size=1000, hypertension_cost=1000, 
@@ -25,11 +26,20 @@ class ScientificCalculator:
         self.cprd = self._load_cprd()
         
     def _load_cprd(self):
-        """CPRD verilerini yukle"""
+        """CPRD verilerini yukle - script'in bulunduğu dizinden"""
         try:
-            with open('cprd-data.prettier_complete.json', 'r', encoding='utf-8') as f:
+            # Script'in bulunduğu dizini bul
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            cprd_file = os.path.join(script_dir, 'cprd-data.prettier_complete.json')
+            
+            with open(cprd_file, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except:
+        except FileNotFoundError:
+            print("HATA: cprd-data.prettier_complete.json dosyası bulunamadı!", file=sys.stderr)
+            print(f"Aranan konum: {cprd_file}", file=sys.stderr)
+            return {'cprdDataBaseline': [], 'cprdDataYearOnYear': []}
+        except Exception as e:
+            print(f"HATA: CPRD verisi yüklenirken hata: {e}", file=sys.stderr)
             return {'cprdDataBaseline': [], 'cprdDataYearOnYear': []}
     
     def get_baseline_prevalence(self, age, bmi, gender, disease='hypertension'):
