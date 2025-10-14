@@ -522,6 +522,77 @@ class ScientificCalculator:
         
         return results
     
+    # --- Yeni hastalıklar (CPRD year-on-year modeli ile) ---
+    def _calculate_generic_cprd(self, disease_code, rrr_coef, age_range, bmi_range, weight_loss_percent, gender=1,
+                                time_horizon=1, cost_per_case=1000, use_cprd_yearonyear=True, rrr_cap=60.0):
+        age = sum(age_range) / 2
+        bmi = sum(bmi_range) / 2
+        if gender == 'both':
+            r_m = self.calculate_disease_generic(age, bmi, weight_loss_percent, 1, disease_code, rrr_coef, cost_per_case)
+            r_f = self.calculate_disease_generic(age, bmi, weight_loss_percent, 0, disease_code, rrr_coef, cost_per_case)
+            results = {
+                'rrr': (r_m['rrr'] + r_f['rrr']) / 2,
+                'cases': (r_m['cases'] + r_f['cases']) / 2,
+                'cost_saving': (r_m['cost_saving'] + r_f['cost_saving']) / 2,
+                'baseline_prevalence': (r_m['baseline_prevalence'] + r_f['baseline_prevalence']) / 2
+            }
+        else:
+            g = 1 if gender == 'male' else (0 if gender == 'female' else gender)
+            results = self.calculate_disease_generic(age, bmi, weight_loss_percent, g, disease_code, rrr_coef, cost_per_case)
+        if time_horizon > 1 and use_cprd_yearonyear:
+            g = 1 if gender == 'male' else (0 if gender == 'female' else gender)
+            growth_results = self.apply_time_horizon_cprd_yearonyear(
+                age=age,
+                bmi=bmi,
+                gender=g,
+                disease=disease_code,
+                weight_loss_percent=weight_loss_percent,
+                time_horizon=time_horizon,
+                cost_per_case=cost_per_case,
+                discount_rate=0.0
+            )
+            results['cases'] = growth_results['total_cases']
+            results['cost_saving'] = growth_results['total_cost_npv']
+            results['cost_saving_nominal'] = growth_results['total_cost_nominal']
+            results['yearly_breakdown'] = growth_results['yearly_breakdown']
+        return results
+    
+    def calculate_sleep_apnoea(self, age_range, bmi_range, weight_loss_percent, gender=1,
+                                time_horizon=1, cost_per_case=1000, use_cprd_yearonyear=True):
+        # Literatür ve CPRD gözlemlerine göre daha mütevazı katsayı
+        return self._calculate_generic_cprd('sleep_apnoea', 1.1, age_range, bmi_range, weight_loss_percent, gender,
+                                            time_horizon, cost_per_case, use_cprd_yearonyear)
+    
+    def calculate_asthma(self, age_range, bmi_range, weight_loss_percent, gender=1,
+                          time_horizon=1, cost_per_case=1000, use_cprd_yearonyear=True):
+        return self._calculate_generic_cprd('asthma', 0.9, age_range, bmi_range, weight_loss_percent, gender,
+                                            time_horizon, cost_per_case, use_cprd_yearonyear)
+    
+    def calculate_osteoarthritis(self, age_range, bmi_range, weight_loss_percent, gender=1,
+                                 time_horizon=1, cost_per_case=1000, use_cprd_yearonyear=True):
+        return self._calculate_generic_cprd('osteoarthritis', 0.8, age_range, bmi_range, weight_loss_percent, gender,
+                                            time_horizon, cost_per_case, use_cprd_yearonyear)
+    
+    def calculate_ckd(self, age_range, bmi_range, weight_loss_percent, gender=1,
+                      time_horizon=1, cost_per_case=1000, use_cprd_yearonyear=True):
+        return self._calculate_generic_cprd('ckd', 0.7, age_range, bmi_range, weight_loss_percent, gender,
+                                            time_horizon, cost_per_case, use_cprd_yearonyear)
+    
+    def calculate_hf(self, age_range, bmi_range, weight_loss_percent, gender=1,
+                     time_horizon=1, cost_per_case=1000, use_cprd_yearonyear=True):
+        return self._calculate_generic_cprd('hf', 0.7, age_range, bmi_range, weight_loss_percent, gender,
+                                            time_horizon, cost_per_case, use_cprd_yearonyear)
+    
+    def calculate_af(self, age_range, bmi_range, weight_loss_percent, gender=1,
+                     time_horizon=1, cost_per_case=1000, use_cprd_yearonyear=True):
+        return self._calculate_generic_cprd('af', 0.6, age_range, bmi_range, weight_loss_percent, gender,
+                                            time_horizon, cost_per_case, use_cprd_yearonyear)
+    
+    def calculate_unstable_angina_mi(self, age_range, bmi_range, weight_loss_percent, gender=1,
+                                     time_horizon=1, cost_per_case=1000, use_cprd_yearonyear=True):
+        return self._calculate_generic_cprd('unstable_angina_mi', 0.5, age_range, bmi_range, weight_loss_percent, gender,
+                                            time_horizon, cost_per_case, use_cprd_yearonyear)
+    
     def analyze(self, age_range, bmi_range, weight_change_percent, gender, time_horizon=1):
         """Analiz yap - Doğrudan range'leri geçir"""
         
@@ -558,8 +629,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Örnekler:
-  python scientific_calculator.py --age-min 30 --age-max 69 --bmi-min 37 --bmi-max 44 --weight-loss -20 --gender male --time-horizon 4
-  python scientific_calculator.py --age-min 60 --age-max 69 --bmi-min 27 --bmi-max 34 --weight-loss -15 --time-horizon 6 --population 1000
+  Temel kullanım:
+    python scientific_calculator.py --age-min 30 --age-max 69 --bmi-min 37 --bmi-max 44 --weight-loss -20 --gender male --time-horizon 4
+  
+  Farklı maliyetlerle:
+    python scientific_calculator.py --age-min 60 --age-max 69 --bmi-min 27 --bmi-max 34 --weight-loss -15 --time-horizon 6 --population 1000 --cost-hypertension 1500 --cost-t2d 2500 --cost-dyslipidaemia 800
         """
     )
     
@@ -571,7 +645,17 @@ def main():
     parser.add_argument('--gender', type=str, required=True, choices=['male', 'female', 'both'], help='Cinsiyet')
     parser.add_argument('--time-horizon', type=int, required=True, help='Time horizon (1-10 yıl)')
     parser.add_argument('--population', type=int, default=1000, help='Popülasyon sayısı (varsayılan: 1000)')
-    parser.add_argument('--cost-per-case', type=int, default=1000, help='Vaka başı maliyet (varsayılan: 1000)')
+    parser.add_argument('--cost-hypertension', type=int, default=1000, help='Hypertension vaka başı maliyet TL (varsayılan: 1000)')
+    parser.add_argument('--cost-t2d', type=int, default=1000, help='T2D vaka başı maliyet TL (varsayılan: 1000)')
+    parser.add_argument('--cost-dyslipidaemia', type=int, default=1000, help='Dyslipidaemia vaka başı maliyet TL (varsayılan: 1000)')
+    # Yeni hastalıklar için maliyet bayrakları
+    parser.add_argument('--cost-sleep-apnoea', type=int, default=1000, help='Sleep apnoea vaka başı maliyet TL (varsayılan: 1000)')
+    parser.add_argument('--cost-asthma', type=int, default=1000, help='Asthma vaka başı maliyet TL (varsayılan: 1000)')
+    parser.add_argument('--cost-osteoarthritis', type=int, default=1000, help='Osteoarthritis vaka başı maliyet TL (varsayılan: 1000)')
+    parser.add_argument('--cost-ckd', type=int, default=1000, help='CKD vaka başı maliyet TL (varsayılan: 1000)')
+    parser.add_argument('--cost-hf', type=int, default=1000, help='Heart failure vaka başı maliyet TL (varsayılan: 1000)')
+    parser.add_argument('--cost-af', type=int, default=1000, help='Atrial fibrillation vaka başı maliyet TL (varsayılan: 1000)')
+    parser.add_argument('--cost-unstable-angina-mi', type=int, default=1000, help='Unstable angina / MI vaka başı maliyet TL (varsayılan: 1000)')
     
     args = parser.parse_args()
     
@@ -583,25 +667,32 @@ def main():
     # Calculator oluştur
     calculator = ScientificCalculator(
         population_size=args.population,
-        hypertension_cost=args.cost_per_case,
+        hypertension_cost=args.cost_hypertension,
         discount_rate=0.035,
         cost_growth_rate=0.0
     )
     
-    # Parametreler
-    params = {
+    # Ortak parametreler
+    base_params = {
         'age_range': (args.age_min, args.age_max),
         'bmi_range': (args.bmi_min, args.bmi_max),
         'weight_loss_percent': args.weight_loss,
         'gender': args.gender,
-        'time_horizon': args.time_horizon,
-        'cost_per_case': args.cost_per_case
+        'time_horizon': args.time_horizon
     }
     
-    # Hesaplamalar
-    results_ht = calculator.calculate_hypertension(**params)
-    results_t2d = calculator.calculate_t2d(**params)
-    results_dyslip = calculator.calculate_dyslipidaemia(**params)
+    # Hesaplamalar - her hastalık için farklı maliyet
+    results_ht = calculator.calculate_hypertension(**base_params, cost_per_case=args.cost_hypertension)
+    results_t2d = calculator.calculate_t2d(**base_params, cost_per_case=args.cost_t2d)
+    results_dyslip = calculator.calculate_dyslipidaemia(**base_params, cost_per_case=args.cost_dyslipidaemia)
+    # Yeni hastalıklar
+    results_sleep = calculator.calculate_sleep_apnoea(**base_params, cost_per_case=args.cost_sleep_apnoea)
+    results_asthma = calculator.calculate_asthma(**base_params, cost_per_case=args.cost_asthma)
+    results_osteo = calculator.calculate_osteoarthritis(**base_params, cost_per_case=args.cost_osteoarthritis)
+    results_ckd = calculator.calculate_ckd(**base_params, cost_per_case=args.cost_ckd)
+    results_hf = calculator.calculate_hf(**base_params, cost_per_case=args.cost_hf)
+    results_af = calculator.calculate_af(**base_params, cost_per_case=args.cost_af)
+    results_ua = calculator.calculate_unstable_angina_mi(**base_params, cost_per_case=args.cost_unstable_angina_mi)
     
     # JSON çıktısı
     output = {
@@ -619,6 +710,41 @@ def main():
             "risk_reduction_percent": round(results_dyslip['rrr'], 1),
             "cases_prevented": int(round(results_dyslip['cases'])),
             "cost_saving": int(round(results_dyslip['cost_saving']))
+        },
+        "sleep_apnoea": {
+            "risk_reduction_percent": round(results_sleep['rrr'], 1),
+            "cases_prevented": int(round(results_sleep['cases'])),
+            "cost_saving": int(round(results_sleep['cost_saving']))
+        },
+        "asthma": {
+            "risk_reduction_percent": round(results_asthma['rrr'], 1),
+            "cases_prevented": int(round(results_asthma['cases'])),
+            "cost_saving": int(round(results_asthma['cost_saving']))
+        },
+        "osteoarthritis": {
+            "risk_reduction_percent": round(results_osteo['rrr'], 1),
+            "cases_prevented": int(round(results_osteo['cases'])),
+            "cost_saving": int(round(results_osteo['cost_saving']))
+        },
+        "ckd": {
+            "risk_reduction_percent": round(results_ckd['rrr'], 1),
+            "cases_prevented": int(round(results_ckd['cases'])),
+            "cost_saving": int(round(results_ckd['cost_saving']))
+        },
+        "hf": {
+            "risk_reduction_percent": round(results_hf['rrr'], 1),
+            "cases_prevented": int(round(results_hf['cases'])),
+            "cost_saving": int(round(results_hf['cost_saving']))
+        },
+        "af": {
+            "risk_reduction_percent": round(results_af['rrr'], 1),
+            "cases_prevented": int(round(results_af['cases'])),
+            "cost_saving": int(round(results_af['cost_saving']))
+        },
+        "unstable_angina_mi": {
+            "risk_reduction_percent": round(results_ua['rrr'], 1),
+            "cases_prevented": int(round(results_ua['cases'])),
+            "cost_saving": int(round(results_ua['cost_saving']))
         }
     }
     
