@@ -323,11 +323,13 @@ def main():
         # Estimated değerini conservative faktörle çarp
         estimated_total = estimated_total * conservative_factor
     
-    # Per patient mode: Cost'ları popülasyona böl
+    # Per patient mode: Cost'ları ve cases'leri popülasyona böl
     if args.per_patient == 1:
         for disease in all_results.keys():
-            if all_results[disease]['cost_saving'] > 0:
-                all_results[disease]['cost_saving'] = all_results[disease]['cost_saving'] / args.population
+            # Cost saving'i her durumda böl (pozitif/negatif fark etmez)
+            all_results[disease]['cost_saving'] = all_results[disease]['cost_saving'] / args.population
+            # Cases'i her durumda böl (pozitif/negatif fark etmez)
+            all_results[disease]['cases'] = all_results[disease]['cases'] / args.population
         # Estimated değerini de per-patient'a çevir
         estimated_total = estimated_total / args.population
     
@@ -336,8 +338,16 @@ def main():
     for disease, result in all_results.items():
         # Virgülle ayrılmış (thousands separator) string formatı - negatif değerleri mutlak değerle göster
         rr_str = f"{round(abs(result['rrr']), 1)}"
-        cases_str = f"{abs(result['cases']):,.0f}"
-        cost_str = f"{abs(result['cost_saving']):,.0f}"
+        # Per-patient mode'da cases ondalık, population mode'da tam sayı
+        if args.per_patient == 1:
+            cases_str = f"{abs(result['cases']):.3f}"
+        else:
+            cases_str = f"{abs(result['cases']):,.0f}"
+        # Per-patient mode'da cost ondalık, population mode'da tam sayı
+        if args.per_patient == 1:
+            cost_str = f"{abs(result['cost_saving']):,.2f}"
+        else:
+            cost_str = f"{abs(result['cost_saving']):,.0f}"
         output[disease] = {
             "risk_reduction_percent": rr_str,
             "cases_prevented": cases_str,
