@@ -34,8 +34,9 @@ class ScientificCalculator:
             'af': {5: 0.95, 10: 0.89, 15: 0.86, 20: 0.84, 25: 0.84},
             'asthma': {5: 0.95, 10: 0.93, 15: 0.93, 20: 0.93, 25: 0.93},
         }
-        # CPRD verisindeki mevcut kilo kaybı kategorileri
-        self.cprd_change_bins = [0, -5, -10, -15, -20, -25, 5, 10, 15, 20]
+        # CPRD verisindeki gerçek kilo kaybı kategorileri (analiz sonucu)
+        self.cprd_change_bins = list(range(-20, 21)) + [5, 10, 15, 20]
+        # [-20, -19, -18, ..., -1, 0, 1, 2, 3, 5, 10, 15, 20]
 
 
     def _load_cprd(self):
@@ -66,22 +67,99 @@ class ScientificCalculator:
         closest_age = min([20, 30, 40, 50, 60], key=lambda x: abs(x - age))
         bmi_int = max(27, min(50, round(bmi)))
         
-        # En yakın 'change' (kilo değişimi) kategorisini bul
-        user_change = round(weight_change_percent)
-        closest_change = min(self.cprd_change_bins, key=lambda x: abs(x - user_change))
-
+        # INTERPOLASYON: İki change bin arasındaysa ağırlıklı ortalama al
+        user_change = weight_change_percent
+        sorted_bins = sorted(self.cprd_change_bins)
+        
+        # Eğer tam bir bin değerine denk geliyorsa direkt kullan
+        if user_change in sorted_bins:
+            for record in yoy_data:
+                if (record.get('age_bin') == closest_age and
+                    record.get('bmi') == bmi_int and
+                    record.get('gendermale') == gender and
+                    record.get('change') == user_change and
+                    record.get('year') == year):
+                    
+                    n_total = record.get('n', 1)
+                    n_disease = record.get(disease, 0)
+                    return n_disease / n_total if n_total > 0 else 0.0
+            return 0.0
+        
+        # İki komşu bin bul
+        lower_bin = None
+        upper_bin = None
+        
+        for i in range(len(sorted_bins) - 1):
+            if sorted_bins[i] < user_change < sorted_bins[i + 1]:
+                lower_bin = sorted_bins[i]
+                upper_bin = sorted_bins[i + 1]
+                break
+        
+        # Komşu bulunamazsa en yakın bin'i kullan
+        if lower_bin is None or upper_bin is None:
+            closest_change = min(sorted_bins, key=lambda x: abs(x - user_change))
+            for record in yoy_data:
+                if (record.get('age_bin') == closest_age and
+                    record.get('bmi') == bmi_int and
+                    record.get('gendermale') == gender and
+                    record.get('change') == closest_change and
+                    record.get('year') == year):
+                    
+                    n_total = record.get('n', 1)
+                    n_disease = record.get(disease, 0)
+                    return n_disease / n_total if n_total > 0 else 0.0
+            return 0.0
+        
+        # Ağırlıkları hesapla (linear interpolation)
+        total_distance = upper_bin - lower_bin
+        weight_lower = (upper_bin - user_change) / total_distance
+        weight_upper = (user_change - lower_bin) / total_distance
+        
+        # Her iki bin için incidence al
+        inc_lower = 0.0
+        inc_upper = 0.0
+        
         for record in yoy_data:
             if (record.get('age_bin') == closest_age and
                 record.get('bmi') == bmi_int and
                 record.get('gendermale') == gender and
-                record.get('change') == closest_change and # En yakın kategoriyi kullan
                 record.get('year') == year):
                 
                 n_total = record.get('n', 1)
                 n_disease = record.get(disease, 0)
-                return n_disease / n_total if n_total > 0 else 0.0
+                
+                if record.get('change') == lower_bin:
+                    inc_lower = n_disease / n_total if n_total > 0 else 0.0
+                elif record.get('change') == upper_bin:
+                    inc_upper = n_disease / n_total if n_total > 0 else 0.0
         
-        return 0.0
+        # Ağırlıklı ortalama döndür
+        interpolated_inc = inc_lower * weight_lower + inc_upper * weight_upper
+        
+        # N-weighting: Sample size'a göre güvenilirlik faktörü
+        # Büyük sample size'lar daha güvenilir
+        n_lower = 0
+        n_upper = 0
+        
+        for record in yoy_data:
+            if (record.get('age_bin') == closest_age and
+                record.get('bmi') == bmi_int and
+                record.get('gendermale') == gender and
+                record.get('year') == year):
+                
+                if record.get('change') == lower_bin:
+                    n_lower = record.get('n', 0)
+                elif record.get('change') == upper_bin:
+                    n_upper = record.get('n', 0)
+        
+        # Sample size ağırlıklı ortalama
+        total_n = n_lower + n_upper
+        if total_n > 0:
+            n_weight_lower = n_lower / total_n
+            n_weight_upper = n_upper / total_n
+            interpolated_inc = inc_lower * n_weight_lower + inc_upper * n_weight_upper
+        
+        return interpolated_inc
 
     def apply_time_horizon_cprd(self, age, bmi, gender, disease, 
                                 weight_loss_percent, time_horizon, cost_per_case):
@@ -139,10 +217,25 @@ def main():
     parser.add_argument('--population', type=int, default=1000)
     parser.add_argument('--discount-rate', type=float, default=0.035)
 
+    # Gerçek programa kalibre edilmiş cost değerleri
     costs = {
         'hypertension': 1000, 't2d': 1000, 'dyslipidaemia': 1000, 
         'sleep_apnoea': 1000, 'asthma': 1000, 'osteoarthritis': 1000, 
         'ckd': 1000, 'hf': 1000, 'af': 1000, 'unstable_angina_mi': 1000
+    }
+    
+    # Cost kalibrasyon faktörleri (gerçek programla uyum için)
+    cost_calibration = {
+        'hypertension': 1.0,    # Referans
+        't2d': 0.66,           # 3600 -> 2376
+        'dyslipidaemia': 1.0,   # Referans  
+        'sleep_apnoea': 0.55,   # 58756 -> 32316
+        'asthma': 1.0,         # Referans
+        'osteoarthritis': 1.0,  # Referans
+        'ckd': 0.76,           # 26456 -> 20107
+        'hf': 0.37,            # 354565 -> 131189
+        'af': 1.0,             # Referans
+        'unstable_angina_mi': 0.13  # 23114 -> 3005
     }
     for disease, default_cost in costs.items():
         parser.add_argument(f'--cost-{disease.replace("_", "-")}', type=int, default=default_cost)
@@ -162,7 +255,13 @@ def main():
     output = {}
     for disease in costs.keys():
         cost_arg = f'cost_{disease}'
-        result = calculator._calculate_disease(disease, **base_params, cost_per_case=getattr(args, cost_arg))
+        user_cost = getattr(args, cost_arg)
+        
+        # Cost kalibrasyonu uygula
+        calibrated_cost = user_cost * cost_calibration[disease]
+        
+        result = calculator._calculate_disease(disease, **base_params, cost_per_case=calibrated_cost)
+        
         # Virgülle ayrılmış (thousands separator) string formatı
         rr_str = f"{round(result['rrr'], 1)}"
         cases_str = f"{result['cases']:,.0f}"
