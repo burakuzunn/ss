@@ -216,6 +216,12 @@ def main():
     parser.add_argument('--time-horizon', type=int, required=True)
     parser.add_argument('--population', type=int, default=1000)
     parser.add_argument('--discount-rate', type=float, default=0.035)
+    
+    # Yeni parametreler
+    parser.add_argument('--per-patient', type=int, choices=[0, 1], default=0,
+                       help='0: Population total, 1: Per patient cost')
+    parser.add_argument('--conservative', type=int, choices=[0, 1], default=1,
+                       help='0: Sum all costs, 1: Only most expensive disease cost')
 
     # Gerçek programa kalibre edilmiş cost değerleri
     costs = {
@@ -252,7 +258,8 @@ def main():
         'time_horizon': args.time_horizon
     }
     
-    output = {}
+    # Tüm hastalıklar için hesaplama yap
+    all_results = {}
     for disease in costs.keys():
         cost_arg = f'cost_{disease}'
         user_cost = getattr(args, cost_arg)
@@ -261,7 +268,27 @@ def main():
         calibrated_cost = user_cost * cost_calibration[disease]
         
         result = calculator._calculate_disease(disease, **base_params, cost_per_case=calibrated_cost)
+        all_results[disease] = result
+    
+    # Conservative mode: Sadece en pahalı hastalığın maliyetini al
+    if args.conservative == 1:
+        # En yüksek maliyetli hastalığı bul
+        max_cost_disease = max(all_results.keys(), key=lambda d: all_results[d]['cost_saving'])
         
+        # Sadece en pahalı hastalığın maliyetini kullan
+        for disease in all_results.keys():
+            if disease != max_cost_disease:
+                all_results[disease]['cost_saving'] = 0
+    
+    # Per patient mode: Cost'ları popülasyona böl
+    if args.per_patient == 1:
+        for disease in all_results.keys():
+            if all_results[disease]['cost_saving'] > 0:
+                all_results[disease]['cost_saving'] = all_results[disease]['cost_saving'] / args.population
+    
+    # Sonuçları formatla
+    output = {}
+    for disease, result in all_results.items():
         # Virgülle ayrılmış (thousands separator) string formatı
         rr_str = f"{round(result['rrr'], 1)}"
         cases_str = f"{result['cases']:,.0f}"
