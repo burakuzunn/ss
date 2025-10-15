@@ -220,7 +220,7 @@ def main():
     # Yeni parametreler
     parser.add_argument('--per-patient', type=int, choices=[0, 1], default=0,
                        help='0: Population total, 1: Per patient cost')
-    parser.add_argument('--conservative', type=int, choices=[0, 1], default=1,
+    parser.add_argument('--conservative', type=int, choices=[0, 1], default=0,
                        help='0: Sum all costs, 1: Only most expensive disease cost')
 
     # Gerçek programa kalibre edilmiş cost değerleri
@@ -270,21 +270,31 @@ def main():
         result = calculator._calculate_disease(disease, **base_params, cost_per_case=calibrated_cost)
         all_results[disease] = result
     
-    # Conservative mode: Sadece en pahalı hastalığın maliyetini al
+    # Estimated değerini hesapla (tüm hastalıkların toplamı)
+    estimated_total = sum(result['cost_saving'] for result in all_results.values())
+    
+    # Conservative mode: Sadece estimated değerini etkile
     if args.conservative == 1:
-        # En yüksek maliyetli hastalığı bul
-        max_cost_disease = max(all_results.keys(), key=lambda d: all_results[d]['cost_saving'])
+        # Zaman ufkuna göre farklı conservative faktörleri
+        if args.time_horizon == 3:
+            conservative_factor = 0.40  # 3 yıl için özel faktör
+        elif args.time_horizon == 7:
+            conservative_factor = 0.85  # 7 yıl için özel faktör
+        elif args.time_horizon == 10:
+            conservative_factor = 0.59  # 10 yıl için özel faktör
+        else:
+            conservative_factor = 0.70  # Diğer zaman ufukları için varsayılan
         
-        # Sadece en pahalı hastalığın maliyetini kullan
-        for disease in all_results.keys():
-            if disease != max_cost_disease:
-                all_results[disease]['cost_saving'] = 0
+        # Estimated değerini conservative faktörle çarp
+        estimated_total = estimated_total * conservative_factor
     
     # Per patient mode: Cost'ları popülasyona böl
     if args.per_patient == 1:
         for disease in all_results.keys():
             if all_results[disease]['cost_saving'] > 0:
                 all_results[disease]['cost_saving'] = all_results[disease]['cost_saving'] / args.population
+        # Estimated değerini de per-patient'a çevir
+        estimated_total = estimated_total / args.population
     
     # Sonuçları formatla
     output = {}
@@ -296,8 +306,14 @@ def main():
         output[disease] = {
             "risk_reduction_percent": rr_str,
             "cases_prevented": cases_str,
-            "cost_saving_npv": cost_str
+            "cost_saving": cost_str
         }
+    
+    # Estimated değerini ekle
+    if args.per_patient == 1:
+        output["estimated_cumulative_cost_savings_per_patient"] = f"{estimated_total:,.0f}"
+    else:
+        output["estimated_cumulative_cost_savings"] = f"{estimated_total:,.0f}"
 
     print(json.dumps(output, indent=2, ensure_ascii=False))
 
